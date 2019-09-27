@@ -474,7 +474,9 @@ class DocbookVisitor
       include_infile_parent = File.dirname(include_infile)
       doc = Dir.chdir(include_infile_parent) do
         File.open(absolute_include_infile) do |file|
-          Nokogiri::XML(file)
+          Nokogiri::XML(file) do |config|
+            config.dtdload
+          end
         end
       end
       # TODO pass in options that were passed to this visitor
