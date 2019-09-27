@@ -1047,11 +1047,7 @@ class DocbookVisitor
       @adjoin_next = false
       format_append_line child
     else
-      append_line '===='
-      @adjoin_next = true
       proceed node
-      @adjoin_next = false
-      append_line '===='
     end
     false
   end
