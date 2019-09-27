@@ -1315,6 +1315,9 @@ class DocbookVisitor
 
   def visit_phrase node
     text = format_text node
+    if element_with_condition?(node) && !text.empty? && !text.first.start_with?('\n')
+      text.prepend('')
+    end
     phText = text.shift(1)[0]
     if node.attr 'role'
       # FIXME for now, double up the marks to be sure we catch it
@@ -1729,6 +1732,7 @@ class DocbookVisitor
   def append_ifdef_end_if_condition node
     append_ifdef_if_condition node do |condition|
       append_line "endif::#{condition}[]"
+      append_blank_line
     end
   end
 
