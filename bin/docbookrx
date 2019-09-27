@@ -29,5 +29,26 @@ opts = {
 #  }
 }
 
-Docbookrx.convert_file infile, opts
+parser = OptionParser.new do |config|
+  config.banner = "Usage: docbookrx [options] file"
+  
+  config.on('-a', '--attribute name[=value]', 'an additional document attribute to set in the form of name, name!, or name=value pair') do |attr|
+    next if (attr = attr.rstrip).empty? || attr == '='
+    name, _, val = attr.partition '='
+    opts[:attributes] = {} unless opts.include? :attributes
+    opts[:attributes][name] = val
+  end
+end
+
+files = parser.parse!
+
+if ARGV.empty?
+  puts parser
+  exit 1
+end
+
+files.each do |infile|
+  Docbookrx.convert_file infile, opts
+end
+
 exit 0
