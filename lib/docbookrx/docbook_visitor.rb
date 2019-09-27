@@ -82,6 +82,7 @@ class DocbookVisitor
     @level = 1
     @skip = {}
     @requires_index = false
+    @found_index = false
     @continuation = false
     @adjoin_next = false
     # QUESTION why not handle idprefix and idseparator as attributes (delete on read)?
@@ -341,33 +342,25 @@ class DocbookVisitor
   end
 
   def after_traverse node, method
-    at_root = (node == node.document.root)
-    if at_root
-      if @requires_index
-        append_blank_line
-        append_line 'ifdef::backend-docbook[]'
-        append_line '[index]'
-        append_line '== Index'
-        append_line '// Generated automatically by the DocBook toolchain.'
-        append_line 'endif::backend-docbook[]'
+    method_name = method.to_s
+    case method_name
+    when "visit_book"
+      if @requires_index && !@found_index
+        append_index
       end
-    else
-      method_name = method.to_s
-      case method_name
-      when "visit_itemizedlist", "visit_orderedlist"
-        @list_depth -= 1
-      when "visit_table", "visit_informaltable"
-        @in_table = false
-      when "visit_emphasis", "process_literal"
-        @nested_formatting.pop
-      end
+    when "visit_itemizedlist", "visit_orderedlist"
+      @list_depth -= 1
+    when "visit_table", "visit_informaltable"
+      @in_table = false
+    when "visit_emphasis", "process_literal"
+      @nested_formatting.pop
+    end
 
-      @last_added_was_special = false
-      case method_name
-      when "visit_itemizedlist", "visit_orderedlist", "visit_table",
-           "visit_informaltable", "visit_quandaset", "figure"
-        @last_added_was_special = true
-      end
+    @last_added_was_special = false
+    case method_name
+    when "visit_itemizedlist", "visit_orderedlist", "visit_table",
+          "visit_informaltable", "visit_quandaset", "figure"
+      @last_added_was_special = true
     end
 
     unless IGNORED_NAMES.include? node.name
@@ -1766,6 +1759,19 @@ class DocbookVisitor
   def visit_subscript node
     format_append_text node, '~', '~'
     false
+  end
+
+  def append_index
+    append_blank_line
+    append_line 'ifndef::backend-html5[]'
+    append_line '[index]'
+    append_line '== Index'
+    append_line 'endif::backend-html5[]'  
+  end
+
+  def visit_index node
+    @found_index = true
+    append_index
   end
 end
 end
