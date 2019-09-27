@@ -1375,6 +1375,7 @@ class DocbookVisitor
   end
 
   def visit_remark node
+    append_blank_line
     format_append_text node, "##", "#"
     false
   end
