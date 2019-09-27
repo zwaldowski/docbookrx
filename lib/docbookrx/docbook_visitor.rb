@@ -314,6 +314,10 @@ class DocbookVisitor
       @nested_formatting.push marker
     when "process_literal"
       @nested_formatting.push '+'
+    when "visit_subscript"
+      @nested_formatting.push '~'
+    when "visit_superscript"
+      @nested_formatting.push '^'
     end
   end
 
@@ -1218,7 +1222,7 @@ class DocbookVisitor
         text = text.gsub(/\|/, '\|')
       end
       if ! @nested_formatting.empty?
-        if text.start_with? '_','*','+','`','#'
+        if text.start_with? '_','*','+','`','#','^','~'
           text = '\\' + text
         end
       end
@@ -1734,6 +1738,16 @@ class DocbookVisitor
       end
     end
     @lines = out_lines
+  end
+
+  def visit_superscript node
+    format_append_text node, '^', '^'
+    false
+  end
+
+  def visit_subscript node
+    format_append_text node, '~', '~'
+    false
   end
 end
 end
