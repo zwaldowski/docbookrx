@@ -365,7 +365,14 @@ class DocbookVisitor
 
   # pass thru XML entities unchanged, eg., for &rarr;
   def visit_entity_ref node
-    append_text %(#{node})
+    case node.name
+    when "nbsp"
+      append_text "{nbsp}"
+    when "wj"
+      append_text "{wj}"
+    else
+      append_text %({#{node.name}})
+    end
     false
   end
 
@@ -1185,7 +1192,7 @@ class DocbookVisitor
         # strips surrounding endlines and indentation on normal paragraphs
         # TODO factor out this whitespace processing
         text = strip_whitespace text
-        is_first = !node.previous_element
+        is_first = !node.previous_element && (!node.previous || node.previous.type != ENTITY_REF_NODE)
         if is_first
           text = text.lstrip
         elsif leading_space_match && !!(text !~ LeadingSpaceRx)
