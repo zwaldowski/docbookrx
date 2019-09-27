@@ -85,11 +85,11 @@ class DocbookVisitor
     @continuation = false
     @adjoin_next = false
     # QUESTION why not handle idprefix and idseparator as attributes (delete on read)?
-    @idprefix = opts[:idprefix] || '_'
-    @idseparator = opts[:idseparator] || '_'
     @normalize_ids = opts.fetch :normalize_ids, true
     @compat_mode = opts[:compat_mode]
     @attributes = opts[:attributes] || {}
+    @idprefix = opts[:idprefix] || @attributes[:idprefix] || '_'
+    @idseparator = opts[:idseparator] || @attributes[:idseparator] || '_'
     @sentence_per_line = opts.fetch :sentence_per_line, true
     @preserve_line_wrap = if @sentence_per_line
       false
