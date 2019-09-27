@@ -489,10 +489,8 @@ class DocbookVisitor
       warn %(Include file not readable: #{include_infile})
     end
     append_blank_line
-    # TODO make leveloffset more context-aware
-    append_line %(:leveloffset: #{@level - 1}) if @level > 1
-    append_line %(include::#{include_outfile}[])
-    append_line %(:leveloffset: 0) if @level > 1
+    append_line %(:imagesdir: #{File.dirname(include_outfile)})
+    append_line %(include::#{include_outfile}[leveloffset=+1])
     false
   end
 
