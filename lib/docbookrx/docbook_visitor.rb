@@ -59,7 +59,7 @@ class DocbookVisitor
 
   ANONYMOUS_LITERAL_NAMES = ['abbrev', 'acronym', 'code', 'command', 'computeroutput', 'database', 'function', 'literal', 'tag', 'userinput']
 
-  NAMED_LITERAL_NAMES = ['application', 'classname', 'constant', 'envar', 'exceptionname', 'interfacename', 'methodname', 'option', 'parameter', 'property', 'replaceable', 'type', 'varname']
+  NAMED_LITERAL_NAMES = ['classname', 'constant', 'envar', 'exceptionname', 'interfacename', 'methodname', 'option', 'parameter', 'property', 'replaceable', 'type', 'varname']
 
   LITERAL_NAMES = ANONYMOUS_LITERAL_NAMES + NAMED_LITERAL_NAMES
 
@@ -69,7 +69,7 @@ class DocbookVisitor
 
   PATH_NAMES = ['directory', 'filename', 'systemitem']
 
-  UI_NAMES = ['guibutton', 'guilabel', 'menuchoice', 'guimenu', 'keycap']
+  UI_NAMES = ['application', 'guibutton', 'guilabel', 'menuchoice', 'guimenu', 'keycap']
 
   LIST_NAMES = ['itemizedlist', 'orderedlist', 'variablelist', 'procedure', 'substeps', 'stepalternatives' ]
 
@@ -597,6 +597,33 @@ class DocbookVisitor
     else
       nil
     end
+  end
+
+  ### Part node visitors
+
+  def visit_part node
+    title_node = node.at_css '> title'
+    title = if title_node
+      text = format_text title_node
+      text.shift(1)[0]
+    else
+      warn %(No title found for part node: #{node})
+      'Unknown Title!'
+    end
+
+    append_blank_line
+    append_line %(= #{title})
+    proceed node
+  end
+
+  def visit_partintro node
+    append_blank_line
+    append_line '[partintro]'
+    append_line '--'
+    @level += 1
+    proceed node, :using_elements => true
+    @level -= 1
+    append_line '--'
   end
 
   ### Block node visitors
@@ -1402,6 +1429,8 @@ class DocbookVisitor
       append_text %([label]##{node.text}#)
     when 'keycap'
       append_text %(kbd:[#{node.text}])
+    when 'application'
+      append_text %([app]_#{node.text}_)
     end
     false
   end
