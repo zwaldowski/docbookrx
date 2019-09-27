@@ -427,22 +427,14 @@ class DocbookVisitor
   alias :visit_articleinfo :visit_info
 
   def visit_chapter node
-    # treat document with <chapter> root element as books
+    # treat document with <chapter> root element as articles
     if node == node.document.root
       @adjoin_next = true
       process_section node do
         append_line ':compat-mode:' if @compat_mode
-        append_line ':doctype: book'
-        append_line ':sectnums:'
-        append_line ':toc: left'
-        append_line ':icons: font'
         append_line ':experimental:'
         append_line %(:idprefix: #{@idprefix}).rstrip unless @idprefix == '_'
         append_line %(:idseparator: #{@idseparator}).rstrip unless @idseparator == '_'
-        append_line %(:sourcedir: .) unless @attributes.key? 'sourcedir'
-        @attributes.each do |name, val|
-          append_line %(:#{name}: #{val}).rstrip
-        end
       end
     else
       process_section node
@@ -450,6 +442,16 @@ class DocbookVisitor
   end
 
   def process_doc node
+    append_line ':compat-mode:' if @compat_mode
+    append_line ':doctype: book'
+    append_line ':sectnums:'
+    append_line ':toc:'
+    append_line ':experimental:'
+    append_line %(:idprefix: #{@idprefix}).rstrip unless @idprefix == '_'
+    append_line %(:idseparator: #{@idseparator}).rstrip unless @idseparator == '_'
+    @attributes.each do |name, val|
+      append_line %(:#{name}: #{val}).rstrip
+    end
     @level += 1
     proceed node, :using_elements => true
     @level -= 1
