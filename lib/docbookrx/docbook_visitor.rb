@@ -1718,12 +1718,14 @@ class DocbookVisitor
   end
 
   def element_with_condition? node
-    node.type == ELEMENT_NODE && node.attr('condition')
+    node.type == ELEMENT_NODE && (node.attr('condition') || node.attr('audience') || node.attr('arch'))
   end
 
   def append_ifdef_if_condition node
     return unless element_with_condition?(node)
-    condition = node.attr('condition')
+    condition = node.attr('condition') || node.attr('audience') || (if (arch = node.attr('arch'))
+      "arch-#{arch}"
+    end)
     yield condition
   end
 
