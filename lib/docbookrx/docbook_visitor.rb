@@ -1471,7 +1471,8 @@ class DocbookVisitor
   alias :visit_guiicon :proceed
 
   def visit_inlinemediaobject node
-    src = node.at_css('imageobject imagedata').attr('fileref')
+    image_node = node.at_css('imageobject imagedata')
+    src = image_node.attr('fileref')
     alt = text_at_css node, 'textobject phrase'
     generated_alt = ::File.basename(src)[0...-(::File.extname(src).length)]
     alt = nil if alt && alt == generated_alt
@@ -1496,8 +1497,15 @@ class DocbookVisitor
       alt = text_at_css node, 'textobject phrase'
       generated_alt = ::File.basename(src)[0...-(::File.extname(src).length)]
       alt = nil if alt && alt == generated_alt
+      width = if (width_value = image_node.attr('width'))
+        %(pdfwidth="#{width_value}")
+      end
+      scale = if (scale_value = image_node.attr('scale'))
+        %{scale="#{width_value}"}
+      end
+      attrs = [ lazy_quote(alt), width, scale ].compact
       append_blank_line
-      append_line %(image::#{src}[#{lazy_quote alt}])
+      append_line %(image::#{src}[#{attrs.join(',')}])
       append_blank_line
     else
       warn %(Unknown mediaobject <#{node.elements.first.name}>! Skipping.)
