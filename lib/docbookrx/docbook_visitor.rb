@@ -585,16 +585,20 @@ class DocbookVisitor
   end
 
   def generate_id title
-    sep = @idseparator
-    pre = @idprefix
-    # FIXME move regexp to constant
-    illegal_sectid_chars = /&(?:[[:alpha:]]+|#[[:digit:]]+|#x[[:alnum:]]+);|\W+?/
-    id = %(#{pre}#{title.downcase.gsub(illegal_sectid_chars, sep).tr_s(sep, sep).chomp(sep)})
-    if pre.empty? && id.start_with?(sep)
-      id = id[1..-1]
-      id = id[1..-1] while id.start_with?(sep)
+    if title
+      sep = @idseparator
+      pre = @idprefix
+      # FIXME move regexp to constant
+      illegal_sectid_chars = /&(?:[[:alpha:]]+|#[[:digit:]]+|#x[[:alnum:]]+);|\W+?/
+      id = %(#{pre}#{title.downcase.gsub(illegal_sectid_chars, sep).tr_s(sep, sep).chomp(sep)})
+      if pre.empty? && id.start_with?(sep)
+        id = id[1..-1]
+        id = id[1..-1] while id.start_with?(sep)
+      end
+      id
+    else
+      nil
     end
-    id
   end
 
   def resolve_id node, opts = {}
@@ -1036,6 +1040,9 @@ class DocbookVisitor
 
   def process_example node
     append_blank_line
+    if (id = (resolve_id node, normalize: @normalize_ids))
+      append_line %([[#{id}]])
+    end
     append_block_title node
     elements = node.elements.to_a
     if elements.size > 0 && elements.first.name == 'title'
