@@ -228,6 +228,25 @@ class DocbookVisitor
     str
   end
 
+  def format_name node
+    if (eponymous_node = (node.at_css '> personname') || (node.at_css '> orgname')) && eponymous_node.elements.empty?
+      text eponymous_node
+    else
+      first_name = (node.at_css '> firstname') || (node.at_css '> personname > firstname')
+      last_name = (node.at_css '> surname') || (node.at_css '> personname > surname')
+      author = [first_name, last_name].compact * ' '
+    end
+  end
+
+  def format_authors node
+    authors = []
+    (node.css 'author').each do |author_node|
+      author = format_name author_node
+      authors << author unless author.empty?
+    end
+    authors
+  end
+
   ## Writer methods
 
   def append_line line = '', unsub = false
@@ -438,19 +457,7 @@ class DocbookVisitor
   def process_info node
     title = text_at_css node, '> title'
     append_line %(= #{title})
-    authors = []
-    (node.css 'author').each do |author_node|
-      # FIXME need to detect DocBook 4.5 vs 5.0 to handle names properly
-      author = if (personname_node = (author_node.at_css 'personname'))
-        text personname_node
-      else
-        [(text_at_css author_node, 'firstname'), (text_at_css author_node, 'surname')].compact * ' '
-      end
-      if (email_node = (author_node.at_css 'email'))
-        author = %(#{author} <#{text email_node}>)
-      end
-      authors << author unless author.empty?
-    end
+    authors = format_authors node
     append_line (authors * '; ') unless authors.empty?
     date_line = nil
     if (revnumber_node = node.at_css('revhistory revnumber', 'releaseinfo'))
