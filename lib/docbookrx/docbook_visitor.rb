@@ -395,6 +395,10 @@ class DocbookVisitor
       append_text "{nbsp}"
     when "wj"
       append_text "{wj}"
+    when "true"
+      append_text "`true`"
+    when "false"
+      append_text "`false`"
     else
       append_text %({#{node.name}})
     end
