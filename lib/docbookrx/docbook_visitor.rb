@@ -69,7 +69,7 @@ class DocbookVisitor
 
   PATH_NAMES = ['directory', 'filename', 'systemitem']
 
-  UI_NAMES = ['application', 'guibutton', 'guilabel', 'menuchoice', 'guimenu', 'keycap']
+  UI_NAMES = ['application', 'guibutton', 'guilabel', 'menuchoice', 'guimenu', 'keycap', 'guimenuitem']
 
   LIST_NAMES = ['itemizedlist', 'orderedlist', 'variablelist', 'procedure', 'substeps', 'stepalternatives' ]
 
@@ -1425,12 +1425,12 @@ class DocbookVisitor
       #append_text %([#{items * ' > '}]) 
     when 'guibutton'
       append_text %(btn:[#{node.text}])
-    when 'guilabel'
-      append_text %([label]##{node.text}#)
     when 'keycap'
       append_text %(kbd:[#{node.text}])
     when 'application'
-      append_text %([app]_#{node.text}_)
+      append_text %([app]##{node.text}#)
+    when 'guilabel', 'guimenuitem'
+      append_text %(menu:#{node.text}[])
     end
     false
   end
