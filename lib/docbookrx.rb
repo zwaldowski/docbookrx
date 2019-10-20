@@ -17,10 +17,11 @@ module Docbookrx
     else
       %(#{infile}.adoc)
     end
-
-    str = ::IO.read infile
-    output = convert str, opts
-    ::IO.write outfile, output
-    nil
+    
+    Dir.chdir(File.dirname(infile)) {
+      output = File.open(infile) { |file| convert file, opts }
+      ::IO.write outfile, output
+      nil
+    }
   end
 end

@@ -470,7 +470,13 @@ class DocbookVisitor
     include_infile = node.attr 'href'
     include_outfile = include_infile.sub '.xml', '.adoc'
     if ::File.readable? include_infile
-      doc = ::Nokogiri::XML::Document.parse(::File.read include_infile)
+      absolute_include_infile = File.absolute_path(node.attr('href'))
+      include_infile_parent = File.dirname(include_infile)
+      doc = Dir.chdir(include_infile_parent) do
+        File.open(absolute_include_infile) do |file|
+          Nokogiri::XML(file)
+        end
+      end
       # TODO pass in options that were passed to this visitor
       visitor = self.class.new
       doc.root.accept visitor
