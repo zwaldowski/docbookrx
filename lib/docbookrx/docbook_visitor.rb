@@ -52,7 +52,7 @@ class DocbookVisitor
 
   NORMAL_SECTION_NAMES = ['section', 'simplesect', 'sect1', 'sect2', 'sect3', 'sect4', 'sect5']
 
-  SPECIAL_SECTION_NAMES = ['abstract', 'appendix', 'bibliography', 'glossary', 'preface']
+  SPECIAL_SECTION_NAMES = ['abstract', 'appendix', 'bibliography', 'glossary', 'preface', 'dedication']
 
   DOCUMENT_NAMES = ['article', 'book']
 
@@ -74,7 +74,7 @@ class DocbookVisitor
 
   LIST_NAMES = ['itemizedlist', 'orderedlist', 'variablelist', 'procedure', 'substeps', 'stepalternatives' ]
 
-  IGNORED_NAMES = ['title', 'subtitle', 'toc']
+  IGNORED_NAMES = ['title', 'subtitle', 'toc', 'attribution']
 
   attr_reader :lines
 
@@ -1087,21 +1087,17 @@ class DocbookVisitor
   def visit_blockquote node
     append_blank_line
     append_block_title node 
-    elements = node.elements.to_a
-    # TODO make skipping title a part of append_block_title perhaps?
-    if elements.size > 0 && elements.first.name == 'title'
-      elements.shift
-    end
-    if elements.size == 1 && PARA_TAG_NAMES.include?((child = elements.first).name)
-      append_line '[quote]'
-      format_append_line child
-    else
-      append_line '____'
-      @adjoin_next = true
-      proceed node
-      @adjoin_next = false
-      append_line '____'
-    end
+    
+    attribution = (node.at_css '> attribution')
+    attribution = %(, #{attribution.text.strip}) if attribution
+    
+    append_line %([quote#{attribution}])
+    append_line '____'
+    @adjoin_next = true
+    proceed node
+    @adjoin_next = false
+    append_line '____'
+
     false
   end
 
@@ -1200,7 +1196,7 @@ class DocbookVisitor
   end
 
   def visit_text node
-    in_para = PARA_TAG_NAMES.include?(node.parent.name) || node.parent.name == 'phrase'
+    in_para = PARA_TAG_NAMES.include?(node.parent.name) || node.parent.name == 'phrase' || node.parent.name == 'emphasis'
     # drop text if empty unless we're processing a paragraph
     unless node.text.rstrip.empty?
       text = node.text
@@ -1342,8 +1338,6 @@ class DocbookVisitor
   def visit_foreignphrase node
     format_append_text node
   end
-
-  alias :visit_attribution :proceed
 
   def visit_quote node
     format_append_text node, '"`', '`"'
