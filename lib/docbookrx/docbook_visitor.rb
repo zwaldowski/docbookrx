@@ -1353,7 +1353,7 @@ class DocbookVisitor
     case roleAttr
     when 'strong', 'bold'
       '*'
-    when 'marked'
+    when 'marked', 'strikethrough'
       '#'
     else
       '_'
