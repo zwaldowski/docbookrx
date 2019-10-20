@@ -40,7 +40,8 @@ class DocbookVisitor
   }
 
   REPLACEMENT_TABLE = {
-    ':: ' => '{two-colons} '
+    ':: ' => '{two-colons} ',
+    ' – ' => ' -- '
   }
 
   PARA_TAG_NAMES = ['para', 'simpara']
