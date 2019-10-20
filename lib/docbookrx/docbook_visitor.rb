@@ -1733,7 +1733,7 @@ class DocbookVisitor
   def append_ifdef_end_if_condition node
     append_ifdef_if_condition node do |condition|
       append_line "endif::#{condition}[]"
-      append_blank_line
+      append_blank_line unless node.next && element_with_condition?(node.next)
     end
   end
 
