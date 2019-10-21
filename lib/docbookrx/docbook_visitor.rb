@@ -493,8 +493,7 @@ class DocbookVisitor
       append_line ':compat-mode:' if @compat_mode
       append_line ':doctype: book'
       append_line ':sectnums:'
-      append_line ':toc: left'
-      append_line ':icons: font'
+      append_line ':toc:'
       append_line ':experimental:'
     end
     append_line %(:idprefix: #{@idprefix}).rstrip unless @idprefix == '_'
