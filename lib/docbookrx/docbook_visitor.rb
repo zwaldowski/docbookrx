@@ -151,6 +151,7 @@ class DocbookVisitor
 
   def after
     replace_ifdef_lines
+    rstrip_lines
   end
 
   def traverse_children node, opts = {}
@@ -248,6 +249,13 @@ class DocbookVisitor
     end
     authors
   end
+  
+  def format_listing text
+    text = text.each_line.map { |line|
+      line.rstrip
+    }.join("\n")
+    text
+  end
 
   ## Writer methods
 
@@ -266,7 +274,7 @@ class DocbookVisitor
 
   def format_append_text node, prefix="", suffix=""
     text = format_text node
-    line = text.shift(1)[0]
+    line = text.shift(1)[0].rstrip
     append_text prefix + line + suffix
     lines.concat(text) unless text.empty?
     text
@@ -494,9 +502,10 @@ class DocbookVisitor
       # TODO pass in options that were passed to this visitor
       visitor = self.class.new
       doc.root.accept visitor
+      visitor.after
       result = visitor.lines
       result.shift while result.size > 0 && result.first.empty?
-      ::File.open(include_outfile, 'w') {|f| f.write(visitor.lines * EOL) }
+      ::File.open(include_outfile, 'w') {|f| f.write(result * EOL) }
     else
       warn %(Include file not readable: #{include_infile})
     end
@@ -993,7 +1002,7 @@ class DocbookVisitor
       append_line '....'
     else
       append_line '----'
-      append_line node.text.rstrip
+      append_line format_listing(node.text)
       append_line '----'
     end
     false
@@ -1750,6 +1759,12 @@ class DocbookVisitor
       end
     end
     @lines = out_lines
+  end
+
+  def rstrip_lines
+    @lines.map! do |line|
+      line.rstrip
+    end
   end
 
   def visit_superscript node
