@@ -251,6 +251,9 @@ class DocbookVisitor
   end
   
   def format_listing text
+    text.gsub!(/\A\s+\n/, "")
+    text.gsub!(/^-\n\+\n/, "\n")
+    text.gsub!(/$\s+(-|\+)?\s*\z/, "")
     text = text.each_line.map { |line|
       line.rstrip
     }.join("\n")
@@ -1014,8 +1017,79 @@ class DocbookVisitor
     false
   end
 
+  def diff_from_bnr_programlisting node
+    diff = ''
+    hunks = [[]]
+
+    def editorial_kind node_or_string
+      return nil unless node_or_string.is_a? ::Nokogiri::XML::Node
+      case node_or_string.name
+      when 'new'
+        :insert
+      when 'del', 'rep'
+        :delete
+      when 'emphasis'
+        node_or_string.attr('role') == 'strikethrough' ? :delete : :insert
+      end  
+    end
+
+    def include_for_editorial? node, expected
+      actual = editorial_kind(node)
+      actual.nil? || actual == expected
+    end
+
+    def text_wrapping_shade node
+      node.name == 'shd' ? %([shd]###{node.text}##) : node.text
+    end
+
+    def extract_text_from_hunk nodes_or_strings
+      nodes_or_strings
+        .map { |node| node.is_a?(String) ? node : text_wrapping_shade(node) }
+        .join('')
+        .gsub(/\n{2,}/, "\n\n")
+    end
+    
+    def prefix_lines text, prefix
+      text.each_line.map { |line|
+        %(#{prefix}#{line})
+      }.join()
+    end
+    
+    visit_child = ->(child) {
+      if !editorial_kind(child) && (text_to_include = text_wrapping_shade(child)) && (around_newline = text_to_include.partition("\n")) && around_newline[1] == "\n"
+        hunks.last << %(#{around_newline[0]}#{around_newline[1]})
+        hunks << []
+
+        visit_child.(Nokogiri::XML::Text.new around_newline[2], child.document)
+      else
+        hunks.last << child
+      end
+    }
+
+    for child in node.children
+      visit_child.(child)
+    end
+
+    for hunk in hunks
+      if hunk.all? { |node| editorial_kind(node).nil? }
+        unmodified_text = extract_text_from_hunk(hunk)
+        diff << prefix_lines(unmodified_text, ' ')
+      else
+        deletions = hunk.select { |node| include_for_editorial?(node, :delete) }
+        deleted_text = extract_text_from_hunk(deletions)
+        diff << prefix_lines(deleted_text, '-') unless deleted_text.strip.empty?
+
+        insertions = hunk.select { |node| include_for_editorial?(node, :insert) }
+        inserted_text = extract_text_from_hunk(insertions)
+        diff << prefix_lines(inserted_text, '+') unless inserted_text.strip.empty?
+      end
+    end
+    format_listing diff
+  end
+
   def visit_programlisting node
-    language = node.attr('language') || node.attr('role') || @attributes['source-language']
+    has_bnr_styles = !(node.at_css '> *').nil?
+    language = (has_bnr_styles ? 'diff' : nil) || node.attr('language') || node.attr('role') || @attributes['source-language']
     language = %(,#{language.downcase}) if language
     linenums = node.attr('linenumbering') == 'numbered'
     append_blank_line unless node.parent.name == 'para'
@@ -1025,6 +1099,10 @@ class DocbookVisitor
       node.elements.each do |el|
         append_line %(include::{sourcedir}/#{el.attr 'href'}[])
       end
+      append_line '----'
+    elsif has_bnr_styles
+      append_line '----'
+      append_line diff_from_bnr_programlisting(node)
       append_line '----'
     else
       source_lines = node.text.rstrip.split EOL
