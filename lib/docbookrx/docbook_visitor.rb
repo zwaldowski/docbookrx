@@ -52,7 +52,7 @@ class DocbookVisitor
 
   NORMAL_SECTION_NAMES = ['section', 'simplesect', 'sect1', 'sect2', 'sect3', 'sect4', 'sect5']
 
-  SPECIAL_SECTION_NAMES = ['abstract', 'appendix', 'bibliography', 'glossary', 'preface', 'dedication']
+  SPECIAL_SECTION_NAMES = ['abstract', 'appendix', 'bibliography', 'glossary', 'preface', 'dedication', 'acknowledgements']
 
   DOCUMENT_NAMES = ['article', 'book']
 
@@ -74,7 +74,9 @@ class DocbookVisitor
 
   LIST_NAMES = ['itemizedlist', 'orderedlist', 'variablelist', 'procedure', 'substeps', 'stepalternatives' ]
 
-  IGNORED_NAMES = ['title', 'subtitle', 'toc', 'attribution']
+  IGNORED_NAMES = ['title', 'subtitle', 'toc', 'attribution', 'authorgroup', 'itermset', 'publishername', 'cover', 'orgname', 'printhistory', 'keywordset', 'subjectset']
+  
+  PASSTHROUGH_NAMES = ['guiicon', 'legalnotice']
 
   attr_reader :lines
 
@@ -159,7 +161,13 @@ class DocbookVisitor
       child.accept self
     end
   end
+  
   alias :proceed :traverse_children
+
+  PASSTHROUGH_NAMES.each do |name|
+    method_name = "visit_#{name}".to_sym
+    alias_method method_name, :proceed
+  end
 
   ## Text extraction and processing methods
 
@@ -428,7 +436,11 @@ class DocbookVisitor
   end
 
   def visit_info node
-    process_info node if DOCUMENT_NAMES.include? node.parent.name
+    if DOCUMENT_NAMES.include?(node.parent.name)
+      process_info node
+    elsif node == node.document.root
+      process_included_info node
+    end
   end
   alias :visit_bookinfo :visit_info
   alias :visit_articleinfo :visit_info
@@ -493,6 +505,57 @@ class DocbookVisitor
     false
   end
 
+  def is_in_root_info node
+    node.parent.name == 'info' && node.parent == node.document.root
+  end
+
+  def process_included_info node
+    title = text_at_css node, '> title'
+    append_line %(:title: #{title})
+
+    if (subtitles = (format_text_at_css node, '> subtitle') )
+      @lines += subtitles
+        .reject { |line| line.empty? }
+        .map { |line|
+          line.start_with?("ifdef::") || line.start_with?("endif::") ? line : %(:subtitle: #{line})
+        }
+    end
+
+    authors = format_authors node
+    append_line %(:authors: #{authors * '; '}) unless authors.empty?
+
+    revnumber = text(node.at_css('revhistory revnumber', 'releaseinfo')) || '1.0'
+    append_line %(:revnumber: #{revnumber})
+    
+    if (date_node = node.at_css('> date', '> pubdate'))
+      append_line %(:revdate: #{date_node.text})
+    end
+
+    if (abstract_node = (node.at_css '> abstract > para'))
+      description = format_text abstract_node
+      description = description.shift(1)[0]
+      append_line %(:description: #{description}).rstrip
+    end
+
+    if (keywords_node = (node.at_css '> keywordset'))
+      keywords = (keywords_node.css '> keyword').map { |keyword|
+        text keyword
+      }.join(', ')
+      append_line %(:keywords: #{keywords}).rstrip
+    end
+
+    append_blank_line
+    append_line '[colophon]'
+    append_line %(#{'=' * @level} About This Book)
+    
+    @level += 1
+    proceed node, :using_elements => true, :ignore_abstract => true
+    @level -= 1
+
+    append_blank_line
+    false
+  end
+
   # Very rough first pass at processing xi:include
   def visit_include node
     # QUESTION should we reuse this instance to traverse the new tree?
@@ -545,6 +608,8 @@ class DocbookVisitor
   end
 
   def process_section node, special = nil
+    return false if node.name == 'abstract' && is_in_root_info(node)
+
     append_blank_line
     if special
       append_line ':sectnums!:'
@@ -1550,7 +1615,7 @@ class DocbookVisitor
     else
       [name, '#']
     end
-    append_text %([#{role}]#{char}#{node.text}#{char})
+    format_append_text node, %([#{role}]#{char}), char
     false
   end
 
@@ -1603,8 +1668,6 @@ class DocbookVisitor
     false 
   end
 
-  alias :visit_guiicon :proceed
-
   def visit_inlinemediaobject node
     image_node = node.at_css('imageobject imagedata')
     src = image_node.attr('fileref')
@@ -1625,6 +1688,8 @@ class DocbookVisitor
 
   # FIXME share logic w/ visit_inlinemediaobject, which is the same here except no block_title and uses append_text, not append_line
   def visit_figure node
+    return false if is_in_root_info(node)
+
     append_blank_line
     if (id = (resolve_id node, normalize: @normalize_ids))
       append_line %([[#{id}]])
@@ -1869,5 +1934,76 @@ class DocbookVisitor
     @found_index = true
     append_index
   end
+
+  def visit_date node
+    return false unless is_in_root_info(node)
+    append_blank_line
+    append_line 'ifdef::revremark+revdate[Version {revnumber}, {revremark}, {revdate}]'
+    append_line 'ifndef::revremark+revdate[Version {revnumber}, {docdate}]'
+  end
+
+  alias :visit_pubdate :visit_date
+
+  def visit_copyright node
+    return false unless is_in_root_info(node)
+    append_blank_line
+    holder = text_at_css node, 'holder'
+    holder = %( by #{holder}) if holder
+    append_line %(Copyright (C) {docyear}#{holder})
+    false
+  end
+
+  def visit_address node
+    text = format_text node
+    address = text.shift(1)[0]
+    @lines += address.each_line
+      .map { |line|
+        line.rstrip.empty? ? line : %(#{line.rstrip} +)
+      }
+    false
+  end
+
+  def visit_biblioid node
+    return false unless is_in_root_info(node)
+    text = format_text node
+    text = text.shift(1)[0]
+    kind = case (otherclass = node.attr('class'))
+    when 'isbn10'
+      "ISBN-10"
+    when 'isbn13'
+      "ISBN-13"
+    else
+      otherclass.upcase
+    end
+    append_line %(#{kind} #{text})
+    false
+  end
+
+  CREDIT_TABLE = {
+    'copyeditor' => 'copy-edited',
+    'graphicdesigner' => 'graphics designed',
+    'productioneditor' => 'production editing',
+    'producer' => 'produced',
+    'translator' => 'translated',
+    'indexer' => 'indexed',
+    'proofreader' => 'proof-read',
+    'coverdesigner' => 'cover designed',
+    'interiordesigner' => 'interior designed',
+    'illustrator' => 'illustrations',
+    'reviewer' => 'reviewed',
+    'typesetter' => 'typeset'
+  }
+
+  def visit_othercredit node
+    return false unless is_in_root_info(node)
+    person = format_name node
+    credit = ((kind = node.attr('class')) && CREDIT_TABLE[kind]) || 'edited'
+    credit = credit.capitalize
+    append_blank_line
+    append_line %(#{credit} by #{person})
+  end
+
+  alias :visit_editor :visit_othercredit
+
 end
 end
