@@ -1,3 +1,6 @@
+require 'nokogiri'
+require 'pathname'
+
 module Docbookrx
 
 class DocbookVisitor
@@ -79,8 +82,13 @@ class DocbookVisitor
   PASSTHROUGH_NAMES = ['guiicon', 'legalnotice']
 
   attr_reader :lines
+  attr_reader :output
+  attr_accessor :ids_used_for_xrefs
 
-  def initialize opts = {}
+  def initialize input, opts = {}
+    @input = File.absolute_path(input)
+    @output = default_output(@input)
+    @opts = opts
     @lines = []
     @level = 1
     @skip = {}
@@ -105,6 +113,8 @@ class DocbookVisitor
     @in_table = false
     @nested_formatting = []
     @last_added_was_special = false
+    @ids_used_for_xrefs = Set.new
+    @child_visitors = []
   end
 
   ## Traversal methods
@@ -154,6 +164,13 @@ class DocbookVisitor
   def after
     replace_ifdef_lines
     rstrip_lines
+    drop_empty_lines
+    remove_unused_ids
+
+    @child_visitors.each { |child|
+      child.ids_used_for_xrefs = @ids_used_for_xrefs
+      child.after
+    }
   end
 
   def traverse_children node, opts = {}
@@ -557,30 +574,15 @@ class DocbookVisitor
 
   # Very rough first pass at processing xi:include
   def visit_include node
-    # QUESTION should we reuse this instance to traverse the new tree?
     include_infile = node.attr 'href'
-    include_outfile = include_infile.sub '.xml', '.adoc'
-    if ::File.readable? include_infile
-      absolute_include_infile = File.absolute_path(node.attr('href'))
-      include_infile_parent = File.dirname(include_infile)
-      doc = Dir.chdir(include_infile_parent) do
-        File.open(absolute_include_infile) do |file|
-          Nokogiri::XML(file) do |config|
-            config.dtdload
-          end
-        end
-      end
-      # TODO pass in options that were passed to this visitor
-      visitor = self.class.new
-      doc.root.accept visitor
-      visitor.after
-      result = visitor.lines
-      result.shift while result.size > 0 && result.first.empty?
-      ::File.open(include_outfile, 'w') {|f| f.write(result * EOL) }
-    else
-      warn %(Include file not readable: #{include_infile})
-    end
+    converter = self.class.new include_infile, @opts
+    converter.run
+
+    @child_visitors << converter
+    @ids_used_for_xrefs.merge(converter.ids_used_for_xrefs)
+
     append_blank_line
+    include_outfile = converter.output_relative_to
     append_line %(:imagesdir: #{File.dirname(include_outfile)})
     append_line %(include::#{include_outfile}[leveloffset=+1])
     false
@@ -1456,6 +1458,7 @@ class DocbookVisitor
   def visit_xref node
     linkend = node.attr 'linkend'
     id = @normalize_ids ? (normalize_id linkend) : linkend
+    @ids_used_for_xrefs << id
     text = format_text node
     label = text.shift(1)[0]
     if label.empty?
@@ -1911,6 +1914,17 @@ class DocbookVisitor
     end
   end
 
+  def drop_empty_lines
+    @lines.shift while @lines.size > 0 && @lines.first.empty?
+  end
+
+  def remove_unused_ids
+    id_line_regex = /^\[\[(\S+?)\]\]$/
+    @lines.reject! { |line|
+      (match = id_line_regex.match(line)) && (id = match[1]) && !@ids_used_for_xrefs.include?(id)
+    }
+  end
+
   def visit_superscript node
     format_append_text node, '^', '^'
     false
@@ -2003,6 +2017,35 @@ class DocbookVisitor
   end
 
   alias :visit_editor :visit_othercredit
+
+  def default_output input
+    File.join(File.dirname(input), %(#{File.basename(input, '.*')}.adoc))
+  end
+
+  def output_relative_to path = Dir.getwd
+    ::Pathname.new(@output).relative_path_from(::Pathname.new(path))
+  end
+  
+  def run
+    input_dir = File.dirname(@input)
+    Dir.chdir(input_dir) {
+      xmldoc = File.open(@input) { |file|
+        Nokogiri::XML(file) { |config|
+          config.dtdload
+        }
+      }
+      raise 'Not a parseable document' unless (root = xmldoc.root)
+      root.accept self
+    }
+  end
+
+  def finish
+    after
+    ::IO.write @output, (@lines * EOL)
+    @child_visitors.each { |child|
+      child.finish
+    }
+  end
 
 end
 end
