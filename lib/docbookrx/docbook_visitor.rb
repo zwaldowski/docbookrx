@@ -121,7 +121,6 @@ class DocbookVisitor
 
   # Main processor loop
   def visit node
-    return if node.type == COMMENT_NODE
     return if node.instance_variable_defined? :@skip
 
     name = node.name
@@ -130,6 +129,8 @@ class DocbookVisitor
       :visit_pi
     when ENTITY_REF_NODE
       :visit_entity_ref
+    when COMMENT_NODE
+      :visit_comment
     else
       if ADMONITION_NAMES.include? name
         :process_admonition
@@ -430,6 +431,19 @@ class DocbookVisitor
     else
       append_text %({#{node.name}})
     end
+    false
+  end
+
+  def visit_comment node
+    comment_lines = node.text.rstrip.split EOL
+    if comment_lines.count > 1
+      append_line '////'
+      append_line (comment_lines * EOL)
+      append_line '////'
+    else
+      append_line %(//#{node.text})
+    end
+    append_blank_line
     false
   end
 
@@ -1537,7 +1551,7 @@ class DocbookVisitor
 
   def visit_remark node
     append_blank_line
-    format_append_text node, "##", "#"
+    format_append_text node, "//"
     false
   end
 
