@@ -1267,6 +1267,9 @@ class DocbookVisitor
 
   def visit_table node
     append_blank_line
+    if (id = (resolve_id node, normalize: @normalize_ids))
+      append_line %([[#{id}]])
+    end
     append_block_title node
     process_table node
     false
